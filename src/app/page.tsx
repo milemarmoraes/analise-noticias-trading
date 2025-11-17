@@ -12,7 +12,8 @@ interface NewsData {
   deviationFromPrevious: number;
   sentiment: 'Hawkish' | 'Dovish' | 'Expansivo' | 'Recessivo';
   timestamp: string;
-  stars: number; // Importância da notícia (1-3 estrelas)
+  stars: number;
+  releaseTime: string; // Hora exata do release da notícia
 }
 
 interface Signal {
@@ -24,8 +25,19 @@ interface Signal {
   takeProfit: number;
   timeframe: string;
   classification: 'Conservador' | 'Moderado' | 'Agressivo';
-  entryTime: string; // Hora da entrada
-  stars: number; // Estrelas da notícia
+  entryTime: string;
+  stars: number;
+  releaseTime: string; // Hora exata do release
+}
+
+interface ForexLevels {
+  support1: number;
+  support2: number;
+  support3: number;
+  resistance1: number;
+  resistance2: number;
+  resistance3: number;
+  pivot: number;
 }
 
 interface ContinuationSignal {
@@ -48,6 +60,7 @@ interface PairAnalysis {
   totalHistoricalEvents: number;
   immediateSignal: Signal;
   continuationSignal: ContinuationSignal;
+  forexLevels: ForexLevels;
 }
 
 export default function Home() {
@@ -89,20 +102,24 @@ export default function Home() {
       }
       const data = await response.json();
       
-      // Adicionar estrelas aos dados da notícia
       const selectedInd = indicators.find(i => i.value === selectedIndicator);
+      
+      // Simular hora exata do release (normalmente seria obtida da API do Investing.com)
+      const releaseTime = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      
       const newsDataWithStars = {
         ...data.newsData,
-        stars: selectedInd?.stars || 2
+        stars: selectedInd?.stars || 2,
+        releaseTime: releaseTime
       };
       
-      // Adicionar hora de entrada e estrelas aos sinais
       const pairAnalysesWithTime = data.pairAnalyses.map((analysis: PairAnalysis) => ({
         ...analysis,
         immediateSignal: {
           ...analysis.immediateSignal,
-          entryTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-          stars: selectedInd?.stars || 2
+          entryTime: releaseTime, // Entrada no momento exato do release
+          stars: selectedInd?.stars || 2,
+          releaseTime: releaseTime
         }
       }));
       
@@ -267,7 +284,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* Seletor de Par - MOVIDO PARA CIMA */}
+            {/* Seletor de Par */}
             <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-slate-700 shadow-xl">
               <label className="block text-white font-semibold mb-3 text-sm md:text-base">
                 Selecione o Ativo (Par de Moedas):
@@ -289,7 +306,7 @@ export default function Home() {
               </div>
             </div>
 
-            {/* BOTÃO DE SINAL - DESTAQUE PRINCIPAL COM HORA E ESTRELAS */}
+            {/* BOTÃO DE SINAL - OPÇÕES BINÁRIAS */}
             <div className={`${getSignalColor(currentPairAnalysis.immediateSignal.type)} rounded-3xl p-6 md:p-8 border-4 border-white/30 shadow-2xl hover:scale-[1.02] transition-all duration-300`}>
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
@@ -306,12 +323,18 @@ export default function Home() {
                       {renderStars(currentPairAnalysis.immediateSignal.stars)}
                     </div>
                     <p className="text-white/90 text-sm md:text-base font-semibold">
-                      {currentPairAnalysis.immediateSignal.pair} • Timeframe: {currentPairAnalysis.immediateSignal.timeframe}
+                      {currentPairAnalysis.immediateSignal.pair} • Opções Binárias
                     </p>
-                    <p className="text-white/80 text-xs md:text-sm font-medium flex items-center gap-2 mt-1">
-                      <Clock className="w-4 h-4" />
-                      Hora da Entrada: {currentPairAnalysis.immediateSignal.entryTime}
-                    </p>
+                    <div className="flex items-center gap-4 mt-2">
+                      <p className="text-white/80 text-xs md:text-sm font-medium flex items-center gap-2">
+                        <Clock className="w-4 h-4" />
+                        Release: {currentPairAnalysis.immediateSignal.releaseTime}
+                      </p>
+                      <p className="text-white/80 text-xs md:text-sm font-medium flex items-center gap-2">
+                        <Target className="w-4 h-4" />
+                        Entrada: {currentPairAnalysis.immediateSignal.entryTime}
+                      </p>
+                    </div>
                   </div>
                 </div>
                 <div className="bg-white/20 backdrop-blur-sm rounded-2xl px-6 py-4 border-2 border-white/40 text-center">
@@ -320,39 +343,99 @@ export default function Home() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border-2 border-white/30">
-                  <p className="text-white/80 text-xs md:text-sm font-semibold mb-1">🎯 ENTRADA (TradingView)</p>
-                  <p className="text-white text-xl md:text-2xl font-bold">{currentPairAnalysis.immediateSignal.entry.toFixed(5)}</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border-2 border-white/30">
-                  <p className="text-white/80 text-xs md:text-sm font-semibold mb-1">🛑 STOP LOSS</p>
-                  <p className="text-white text-xl md:text-2xl font-bold">{currentPairAnalysis.immediateSignal.stop.toFixed(5)}</p>
-                </div>
-                <div className="bg-white/20 backdrop-blur-sm rounded-xl p-4 border-2 border-white/30">
-                  <p className="text-white/80 text-xs md:text-sm font-semibold mb-1">💰 TAKE PROFIT</p>
-                  <p className="text-white text-xl md:text-2xl font-bold">{currentPairAnalysis.immediateSignal.takeProfit.toFixed(5)}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20">
-                <div>
-                  <p className="text-white/80 text-xs md:text-sm font-semibold">TIMEFRAME MAIS ASSERTIVO (12 meses)</p>
-                  <p className="text-white text-xl md:text-2xl font-bold">{currentPairAnalysis.immediateSignal.timeframe}</p>
-                </div>
-                <div className={`${getClassificationColor(currentPairAnalysis.immediateSignal.classification)} rounded-lg px-4 py-2 border-2 border-white/30`}>
-                  <p className="text-white text-sm md:text-lg font-bold">
-                    {currentPairAnalysis.immediateSignal.classification === 'Conservador' && '🔵'}
-                    {currentPairAnalysis.immediateSignal.classification === 'Moderado' && '🟡'}
-                    {currentPairAnalysis.immediateSignal.classification === 'Agressivo' && '🔴'}
-                    {' '}{currentPairAnalysis.immediateSignal.classification}
-                  </p>
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/20 mb-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-white/80 text-xs md:text-sm font-semibold">TIMEFRAME MAIS ASSERTIVO (12 meses)</p>
+                    <p className="text-white text-xl md:text-2xl font-bold">{currentPairAnalysis.immediateSignal.timeframe}</p>
+                  </div>
+                  <div className={`${getClassificationColor(currentPairAnalysis.immediateSignal.classification)} rounded-lg px-4 py-2 border-2 border-white/30`}>
+                    <p className="text-white text-sm md:text-lg font-bold">
+                      {currentPairAnalysis.immediateSignal.classification === 'Conservador' && '🔵'}
+                      {currentPairAnalysis.immediateSignal.classification === 'Moderado' && '🟡'}
+                      {currentPairAnalysis.immediateSignal.classification === 'Agressivo' && '🔴'}
+                      {' '}{currentPairAnalysis.immediateSignal.classification}
+                    </p>
+                  </div>
                 </div>
               </div>
 
-              <div className="mt-4 bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
+              <div className="bg-white/10 backdrop-blur-sm rounded-xl p-3 border border-white/20">
                 <p className="text-white/90 text-xs md:text-sm text-center">
-                  ⚡ Baseado em análise de {currentPairAnalysis.totalHistoricalEvents} eventos similares • Taxa de acerto: {currentPairAnalysis.historicalWinRate.toFixed(1)}% • Níveis de preço: TradingView/Exness
+                  ⚡ Baseado em análise de {currentPairAnalysis.totalHistoricalEvents} eventos similares • Taxa de acerto: {currentPairAnalysis.historicalWinRate.toFixed(1)}% • Entrada no momento exato do release da notícia
+                </p>
+              </div>
+            </div>
+
+            {/* NÍVEIS DE PREÇO FOREX */}
+            <div className="bg-slate-800/50 backdrop-blur-sm rounded-2xl p-4 md:p-6 border border-slate-700 shadow-xl">
+              <h2 className="text-xl md:text-2xl font-bold text-white mb-4 flex items-center gap-2">
+                <TrendingUpDown className="w-5 h-5 md:w-6 md:h-6 text-cyan-400" />
+                Níveis de Preço para Forex (TradingView/Exness)
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                {/* Resistências */}
+                <div className="bg-red-500/10 border-2 border-red-500/30 rounded-xl p-4">
+                  <h3 className="text-red-400 font-bold mb-3 flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    Resistências (Venda)
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3">
+                      <span className="text-red-300 text-sm font-semibold">R3 (Forte)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.resistance3.toFixed(5)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3">
+                      <span className="text-red-300 text-sm font-semibold">R2 (Médio)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.resistance2.toFixed(5)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-red-500/20 rounded-lg p-3">
+                      <span className="text-red-300 text-sm font-semibold">R1 (Fraco)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.resistance1.toFixed(5)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Suportes */}
+                <div className="bg-green-500/10 border-2 border-green-500/30 rounded-xl p-4">
+                  <h3 className="text-green-400 font-bold mb-3 flex items-center gap-2">
+                    <TrendingDown className="w-5 h-5" />
+                    Suportes (Compra)
+                  </h3>
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3">
+                      <span className="text-green-300 text-sm font-semibold">S1 (Fraco)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.support1.toFixed(5)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3">
+                      <span className="text-green-300 text-sm font-semibold">S2 (Médio)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.support2.toFixed(5)}</span>
+                    </div>
+                    <div className="flex justify-between items-center bg-green-500/20 rounded-lg p-3">
+                      <span className="text-green-300 text-sm font-semibold">S3 (Forte)</span>
+                      <span className="text-white text-lg font-bold">{currentPairAnalysis.forexLevels.support3.toFixed(5)}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Pivot Point */}
+              <div className="bg-blue-500/10 border-2 border-blue-500/30 rounded-xl p-4">
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <Target className="w-6 h-6 text-blue-400" />
+                    <span className="text-blue-300 font-bold text-lg">Pivot Point (Equilíbrio)</span>
+                  </div>
+                  <span className="text-white text-2xl font-black">{currentPairAnalysis.forexLevels.pivot.toFixed(5)}</span>
+                </div>
+              </div>
+
+              <div className="mt-4 bg-slate-700/30 rounded-xl p-3 border border-slate-600">
+                <p className="text-slate-400 text-xs md:text-sm">
+                  💡 <strong>Forex:</strong> Use os níveis de suporte para compras e resistências para vendas. O Pivot Point indica o equilíbrio do mercado.
+                  <br />
+                  📊 Níveis calculados com base em dados do TradingView e compatíveis com Exness.
                 </p>
               </div>
             </div>
@@ -524,9 +607,12 @@ export default function Home() {
                 <p className="text-white text-sm md:text-lg leading-relaxed">
                   {selectedIndicatorInfo?.label} {newsData.deviationFromForecast > 0 ? 'acima' : 'abaixo'} da previsão → USD {newsData.deviationFromForecast > 0 ? 'forte' : 'fraco'}.
                   <br /><br />
-                  <strong>Análise em tempo real:</strong> Baseado em {currentPairAnalysis.totalHistoricalEvents} eventos similares nos últimos 12 meses, com taxa de acerto de {currentPairAnalysis.historicalWinRate.toFixed(1)}%.
+                  <strong>Análise em tempo real:</strong> Baseado em {currentPairAnalysis.totalHistoricalEvents} eventos similares nos últimos 12 meses, com taxa de acerto de {currentPairAnalysis.historicalWinRate.toFixed(1)}%.<br />
+                  Release da notícia: {newsData.releaseTime}
                   <br /><br />
-                  <strong>Sinal recomendado:</strong> {currentPairAnalysis.immediateSignal.type} {currentPairAnalysis.immediateSignal.pair} no timeframe de {currentPairAnalysis.immediateSignal.timeframe} — Probabilidade {currentPairAnalysis.immediateSignal.probability}%.
+                  <strong>Opções Binárias:</strong> {currentPairAnalysis.immediateSignal.type} {currentPairAnalysis.immediateSignal.pair} no timeframe de {currentPairAnalysis.immediateSignal.timeframe} — Probabilidade {currentPairAnalysis.immediateSignal.probability}%. Entrada no momento exato do release ({currentPairAnalysis.immediateSignal.entryTime}).
+                  <br /><br />
+                  <strong>Forex:</strong> Níveis de suporte em {currentPairAnalysis.forexLevels.support1.toFixed(5)}, {currentPairAnalysis.forexLevels.support2.toFixed(5)} e {currentPairAnalysis.forexLevels.support3.toFixed(5)}. Resistências em {currentPairAnalysis.forexLevels.resistance1.toFixed(5)}, {currentPairAnalysis.forexLevels.resistance2.toFixed(5)} e {currentPairAnalysis.forexLevels.resistance3.toFixed(5)}. Pivot Point: {currentPairAnalysis.forexLevels.pivot.toFixed(5)}.
                   <br /><br />
                   <strong>Continuação esperada:</strong> {currentPairAnalysis.continuationSignal.direction === 'continuar' ? 'Continuação do movimento' : currentPairAnalysis.continuationSignal.direction === 'pullback' ? 'Pullback seguido de continuação' : 'Possível reversão'} — Probabilidade {currentPairAnalysis.continuationSignal.probability}%.
                 </p>

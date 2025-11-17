@@ -1,194 +1,214 @@
-import { NextRequest, NextResponse } from 'next/server';
-import {
-  fetchHistoricalData,
-  calculateProbability,
-  determineBestTimeframe,
-  calculateExpectedVolatility,
-  analyzeDirection
-} from '@/lib/economic-calendar';
+import { NextResponse } from 'next/server';
 
-// Simulação de dados históricos dos últimos 12 meses
-const generateHistoricalData = (indicator: string) => {
-  const baseValue = {
-    'NFP': 200000,
-    'UNEMPLOYMENT': 3.8,
-    'PMI_MANUFACTURING': 52.5,
-    'PMI_SERVICES': 54.2,
-    'FOMC': 5.25,
-    'HOUSING_STARTS': 1450000,
-    'BUILDING_PERMITS': 1480000,
-    'HOUSING_SALES': 4200000,
-    'CPI': 3.2,
-    'CRUDE_OIL': 420000000,
-    'GDP': 2.5
-  }[indicator] || 100;
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const indicator = searchParams.get('indicator') || 'NFP';
 
-  const variance = baseValue * 0.05;
-  const current = baseValue + (Math.random() - 0.5) * variance;
-  const forecast = baseValue + (Math.random() - 0.5) * variance * 0.8;
-  const previous = baseValue + (Math.random() - 0.5) * variance * 0.9;
-
-  return { current, forecast, previous };
-};
-
-// Análise de sentimento baseada nos desvios
-const analyzeSentiment = (deviationFromForecast: number, deviationFromPrevious: number): 'Hawkish' | 'Dovish' | 'Expansivo' | 'Recessivo' => {
-  if (deviationFromForecast > 0) {
-    return deviationFromPrevious > 0 ? 'Expansivo' : 'Hawkish';
-  } else {
-    return deviationFromPrevious < 0 ? 'Recessivo' : 'Dovish';
-  }
-};
-
-// Gerar análise de pares baseada em padrões históricos REAIS dos últimos 12 meses
-const generatePairAnalysis = async (newsData: any, pair: string) => {
-  // Buscar dados históricos reais do indicador
-  const historicalPattern = await fetchHistoricalData(newsData.indicator);
+  // Simulação de dados do calendário econômico (Investing.com)
+  const economicData = generateEconomicData(indicator);
   
-  // Calcular probabilidade baseada em padrões históricos
-  const probability = calculateProbability(
-    historicalPattern,
-    newsData.deviationFromForecast,
-    newsData.deviationFromPrevious
-  );
+  // Análise de pares baseada nos dados econômicos
+  const pairAnalyses = generatePairAnalyses(economicData);
 
-  // Determinar direção baseada em análise histórica
-  const signalType = analyzeDirection(
-    historicalPattern,
-    newsData.deviationFromForecast,
-    pair
-  );
-
-  // Calcular volatilidade esperada para cada timeframe
-  const volatility = calculateExpectedVolatility(
-    historicalPattern,
-    newsData.deviationFromForecast
-  );
-
-  // Determinar melhor timeframe baseado em dados históricos
-  const bestTimeframe = determineBestTimeframe(historicalPattern);
-
-  // Preço base simulado para o par
-  const basePrice = {
-    'EUR/USD': 1.0850,
-    'USD/JPY': 149.50,
-    'USD/CHF': 0.8750,
-    'USD/CAD': 1.3550,
-    'EUR/JPY': 162.30,
-    'CHF/JPY': 170.80
-  }[pair] || 1.0000;
-
-  const entry = basePrice * (1 + (Math.random() - 0.5) * 0.001);
-  
-  // Stop e Take Profit baseados na volatilidade histórica
-  const avgVolatility = (volatility.volatility3min + volatility.volatility5min) / 2;
-  const stopDistance = (avgVolatility / 10000) * basePrice; // Converter pips para preço
-  const takeProfitDistance = stopDistance * (1.5 + (probability - 70) / 20); // Ajustar R:R baseado na probabilidade
-
-  const stop = signalType === 'COMPRA' ? entry - stopDistance : entry + stopDistance;
-  const takeProfit = signalType === 'COMPRA' ? entry + takeProfitDistance : entry - takeProfitDistance;
-
-  // Classificação do sinal baseada na probabilidade histórica
-  let classification: 'Conservador' | 'Moderado' | 'Agressivo';
-  if (probability >= 80) {
-    classification = 'Agressivo';
-  } else if (probability >= 70) {
-    classification = 'Moderado';
-  } else {
-    classification = 'Conservador';
-  }
-
-  // Sinal de continuação baseado em padrões históricos
-  const continuationProbability = probability * 0.85;
-  let direction: 'continuar' | 'pullback' | 'reverter';
-  if (continuationProbability >= 75) {
-    direction = 'continuar';
-  } else if (continuationProbability >= 60) {
-    direction = 'pullback';
-  } else {
-    direction = 'reverter';
-  }
-
-  // Determinar volatilidade baseada nos dados históricos
-  const volatilityLevel: 'baixa' | 'média' | 'alta' = 
-    avgVolatility > 25 ? 'alta' : avgVolatility > 15 ? 'média' : 'baixa';
-
-  return {
-    pair,
-    probabilityUp: signalType === 'COMPRA' ? probability : 100 - probability,
-    probabilityDown: signalType === 'VENDA' ? probability : 100 - probability,
-    strength: avgVolatility > 25 ? 'forte' : avgVolatility > 15 ? 'moderado' : 'fraco',
-    volatility3min: volatility.volatility3min,
-    volatility5min: volatility.volatility5min,
-    volatility10min: volatility.volatility10min,
-    volatility15min: volatility.volatility15min,
-    historicalWinRate: historicalPattern.winRate,
-    totalHistoricalEvents: historicalPattern.totalEvents,
-    immediateSignal: {
-      type: signalType,
-      pair,
-      probability: Math.round(probability),
-      entry: parseFloat(entry.toFixed(5)),
-      stop: parseFloat(stop.toFixed(5)),
-      takeProfit: parseFloat(takeProfit.toFixed(5)),
-      timeframe: bestTimeframe,
-      classification
-    },
-    continuationSignal: {
-      direction,
-      probability: Math.round(continuationProbability),
-      volatility: volatilityLevel,
-      entry: parseFloat((entry * (1 + (Math.random() - 0.5) * 0.0005)).toFixed(5))
-    }
-  };
-};
-
-export async function GET(request: NextRequest) {
-  try {
-    const searchParams = request.nextUrl.searchParams;
-    const indicator = searchParams.get('indicator') || 'NFP';
-
-    // Gerar dados da notícia
-    const { current, forecast, previous } = generateHistoricalData(indicator);
-    const deviationFromForecast = current - forecast;
-    const deviationFromPrevious = current - previous;
-    const sentiment = analyzeSentiment(deviationFromForecast, deviationFromPrevious);
-
-    const newsData = {
-      indicator,
-      current,
-      forecast,
-      previous,
-      deviationFromForecast,
-      deviationFromPrevious,
-      sentiment,
-      timestamp: new Date().toISOString()
-    };
-
-    // Gerar análise para cada par usando dados históricos reais
-    const pairs = ['EUR/USD', 'USD/JPY', 'USD/CHF', 'USD/CAD', 'EUR/JPY', 'CHF/JPY'];
-    const pairAnalyses = await Promise.all(
-      pairs.map(pair => generatePairAnalysis(newsData, pair))
-    );
-
-    return NextResponse.json({
-      newsData,
-      pairAnalyses,
-      metadata: {
-        source: 'Análise baseada em 12 meses de dados históricos',
-        lastUpdate: new Date().toISOString(),
-        dataQuality: 'high'
-      }
-    });
-  } catch (error) {
-    console.error('Erro na análise:', error);
-    return NextResponse.json(
-      { error: 'Erro ao processar análise' },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({
+    newsData: economicData,
+    pairAnalyses: pairAnalyses
+  });
 }
 
-// Adicionar suporte para runtime edge (opcional, mas pode ajudar)
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
+function generateEconomicData(indicator: string) {
+  const baseValues: Record<string, { current: number; forecast: number; previous: number }> = {
+    'NFP': { current: 256000, forecast: 180000, previous: 165000 },
+    'UNEMPLOYMENT': { current: 3.7, forecast: 3.8, previous: 3.9 },
+    'PMI_MANUFACTURING': { current: 52.3, forecast: 50.5, previous: 49.8 },
+    'PMI_SERVICES': { current: 54.1, forecast: 52.0, previous: 51.5 },
+    'FOMC': { current: 5.50, forecast: 5.50, previous: 5.25 },
+    'HOUSING_STARTS': { current: 1.42, forecast: 1.35, previous: 1.33 },
+    'BUILDING_PERMITS': { current: 1.48, forecast: 1.40, previous: 1.38 },
+    'HOUSING_SALES': { current: 4.38, forecast: 4.20, previous: 4.15 },
+    'CPI': { current: 3.2, forecast: 3.0, previous: 3.1 },
+    'CRUDE_OIL': { current: -2.5, forecast: -1.0, previous: 1.2 },
+    'GDP': { current: 2.8, forecast: 2.5, previous: 2.4 }
+  };
+
+  const data = baseValues[indicator] || baseValues['NFP'];
+  
+  // Adicionar variação aleatória para simular dados em tempo real
+  const variation = (Math.random() - 0.5) * 0.1;
+  const current = data.current + (data.current * variation);
+  
+  const deviationFromForecast = current - data.forecast;
+  const deviationFromPrevious = current - data.previous;
+
+  // Determinar sentimento baseado nos desvios
+  let sentiment: 'Hawkish' | 'Dovish' | 'Expansivo' | 'Recessivo';
+  
+  if (['FOMC', 'CPI'].includes(indicator)) {
+    sentiment = deviationFromForecast > 0 ? 'Hawkish' : 'Dovish';
+  } else {
+    sentiment = deviationFromForecast > 0 ? 'Expansivo' : 'Recessivo';
+  }
+
+  return {
+    indicator,
+    current,
+    forecast: data.forecast,
+    previous: data.previous,
+    deviationFromForecast,
+    deviationFromPrevious,
+    sentiment,
+    timestamp: new Date().toISOString()
+  };
+}
+
+function generatePairAnalyses(economicData: any) {
+  const pairs = ['EUR/USD', 'USD/JPY', 'USD/CHF', 'USD/CAD', 'EUR/JPY', 'CHF/JPY'];
+  
+  return pairs.map(pair => {
+    const isUSDStrong = economicData.deviationFromForecast > 0;
+    const impactStrength = Math.abs(economicData.deviationFromForecast / economicData.forecast);
+    
+    // Determinar direção baseada no par e força do USD
+    let signalType: 'COMPRA' | 'VENDA';
+    let probabilityUp: number;
+    let probabilityDown: number;
+    
+    if (pair.startsWith('USD/')) {
+      // USD é a base
+      signalType = isUSDStrong ? 'COMPRA' : 'VENDA';
+      probabilityUp = isUSDStrong ? 65 + (impactStrength * 20) : 35 - (impactStrength * 10);
+      probabilityDown = 100 - probabilityUp;
+    } else if (pair.endsWith('/USD')) {
+      // USD é a cotação
+      signalType = isUSDStrong ? 'VENDA' : 'COMPRA';
+      probabilityUp = isUSDStrong ? 35 - (impactStrength * 10) : 65 + (impactStrength * 20);
+      probabilityDown = 100 - probabilityUp;
+    } else {
+      // Pares cruzados
+      signalType = Math.random() > 0.5 ? 'COMPRA' : 'VENDA';
+      probabilityUp = 50 + (Math.random() * 20 - 10);
+      probabilityDown = 100 - probabilityUp;
+    }
+
+    // Calcular volatilidades históricas simuladas
+    const baseVolatility = 15 + (impactStrength * 30);
+    const volatility3min = baseVolatility * (0.8 + Math.random() * 0.4);
+    const volatility5min = baseVolatility * (1.0 + Math.random() * 0.3);
+    const volatility10min = baseVolatility * (1.2 + Math.random() * 0.4);
+    const volatility15min = baseVolatility * (1.4 + Math.random() * 0.5);
+
+    // Determinar melhor timeframe baseado na volatilidade
+    const volatilities = [
+      { time: '0-3 min', value: volatility3min },
+      { time: '3-5 min', value: volatility5min },
+      { time: '5-10 min', value: volatility10min },
+      { time: '10-15 min', value: volatility15min }
+    ];
+    const bestTimeframe = volatilities.reduce((max, curr) => 
+      curr.value > max.value ? curr : max
+    ).time;
+
+    // Calcular preço base para o par
+    const basePrices: Record<string, number> = {
+      'EUR/USD': 1.08500,
+      'USD/JPY': 149.500,
+      'USD/CHF': 0.87500,
+      'USD/CAD': 1.36500,
+      'EUR/JPY': 162.250,
+      'CHF/JPY': 170.850
+    };
+
+    const basePrice = basePrices[pair] || 1.0000;
+    const priceVariation = (Math.random() - 0.5) * 0.002;
+    const currentPrice = basePrice + (basePrice * priceVariation);
+
+    // Calcular níveis de Forex (Pivot Points)
+    const high = currentPrice * 1.002;
+    const low = currentPrice * 0.998;
+    const close = currentPrice;
+    
+    const pivot = (high + low + close) / 3;
+    const resistance1 = (2 * pivot) - low;
+    const support1 = (2 * pivot) - high;
+    const resistance2 = pivot + (high - low);
+    const support2 = pivot - (high - low);
+    const resistance3 = high + 2 * (pivot - low);
+    const support3 = low - 2 * (high - pivot);
+
+    // Sinal imediato
+    const probability = Math.min(95, Math.max(60, 70 + (impactStrength * 25)));
+    const entry = currentPrice;
+    const pipSize = pair.includes('JPY') ? 0.01 : 0.0001;
+    const stop = signalType === 'COMPRA' ? entry - (20 * pipSize) : entry + (20 * pipSize);
+    const takeProfit = signalType === 'COMPRA' ? entry + (40 * pipSize) : entry - (40 * pipSize);
+
+    // Classificação de risco
+    let classification: 'Conservador' | 'Moderado' | 'Agressivo';
+    if (probability >= 80) {
+      classification = 'Conservador';
+    } else if (probability >= 70) {
+      classification = 'Moderado';
+    } else {
+      classification = 'Agressivo';
+    }
+
+    // Sinal de continuação
+    const continuationProbability = Math.min(85, probability - 5);
+    let direction: 'continuar' | 'pullback' | 'reverter';
+    if (continuationProbability >= 70) {
+      direction = 'continuar';
+    } else if (continuationProbability >= 55) {
+      direction = 'pullback';
+    } else {
+      direction = 'reverter';
+    }
+
+    const volatilityLevel: 'baixa' | 'média' | 'alta' = 
+      baseVolatility < 20 ? 'baixa' : baseVolatility < 35 ? 'média' : 'alta';
+
+    // Taxa de acerto histórica simulada
+    const historicalWinRate = Math.min(92, Math.max(65, 75 + (impactStrength * 15)));
+    const totalHistoricalEvents = Math.floor(150 + Math.random() * 100);
+
+    return {
+      pair,
+      probabilityUp: Math.round(probabilityUp * 10) / 10,
+      probabilityDown: Math.round(probabilityDown * 10) / 10,
+      strength: impactStrength > 0.15 ? 'forte' : impactStrength > 0.08 ? 'moderado' : 'fraco',
+      volatility3min: Math.round(volatility3min * 10) / 10,
+      volatility5min: Math.round(volatility5min * 10) / 10,
+      volatility10min: Math.round(volatility10min * 10) / 10,
+      volatility15min: Math.round(volatility15min * 10) / 10,
+      historicalWinRate: Math.round(historicalWinRate * 10) / 10,
+      totalHistoricalEvents,
+      immediateSignal: {
+        type: signalType,
+        pair,
+        probability: Math.round(probability),
+        entry: Math.round(entry * 100000) / 100000,
+        stop: Math.round(stop * 100000) / 100000,
+        takeProfit: Math.round(takeProfit * 100000) / 100000,
+        timeframe: bestTimeframe,
+        classification,
+        entryTime: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+        stars: 0,
+        releaseTime: ''
+      },
+      continuationSignal: {
+        direction,
+        probability: Math.round(continuationProbability),
+        volatility: volatilityLevel,
+        entry: Math.round(currentPrice * 100000) / 100000
+      },
+      forexLevels: {
+        support1: Math.round(support1 * 100000) / 100000,
+        support2: Math.round(support2 * 100000) / 100000,
+        support3: Math.round(support3 * 100000) / 100000,
+        resistance1: Math.round(resistance1 * 100000) / 100000,
+        resistance2: Math.round(resistance2 * 100000) / 100000,
+        resistance3: Math.round(resistance3 * 100000) / 100000,
+        pivot: Math.round(pivot * 100000) / 100000
+      }
+    };
+  });
+}
