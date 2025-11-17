@@ -17,8 +17,15 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Criado com a Lasy",
-  description: "Projeto criado com Lasy AI",
+  title: "Analista Financeiro Avançado - Forex & Opções Binárias",
+  description: "Análise em tempo real de notícias macroeconômicas para Forex e Opções Binárias. Sinais de trading com alta probabilidade baseados em indicadores econômicos.",
+  keywords: "forex, opções binárias, trading, análise técnica, sinais de trading, indicadores econômicos, NFP, FOMC, IPC",
+  authors: [{ name: "Analista Financeiro Avançado" }],
+  openGraph: {
+    title: "Analista Financeiro Avançado - Forex & Opções Binárias",
+    description: "Análise em tempo real de notícias macroeconômicas para Forex e Opções Binárias",
+    type: "website",
+  },
 };
 
 export default function RootLayout({
